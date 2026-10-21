@@ -1,0 +1,7 @@
+# dsh-simple-tps bundle patch: inserts this plugin's loader row into the profile
+# roster. The row is a bare package name: the host half (exports ".") runs in the
+# DSH process and does nothing, while the `dsh.client` declaration in package.json
+# makes the browser half (exports "./client") load in the web GUI.
+- insert:
+    - id: simple-tps
+      name: 'dsh-simple-tps'
