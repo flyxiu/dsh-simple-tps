@@ -52,14 +52,7 @@ dsh plugin --profile web add link:/path/to/dsh-simple-tps
 
 ## 更新
 
-修改 `package.json` 的版本号并推送即可。插件市场通过比对仓库 HEAD 与本地 lockfile 中的 commit 判断是否有更新：
-
-```bash
-npm version patch
-git push github main
-```
-
-用户端在插件市场中点击更新完成升级。不需要发布到 npm，也不需要手工替换文件。
+插件市场比对仓库 HEAD 与用户 lockfile 中的 commit 判断是否有更新，因此在插件市场点击更新即可升级，不需要重新安装。`link:` 方式安装的副本不参与该检查。
 
 ## 开发
 

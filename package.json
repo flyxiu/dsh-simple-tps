@@ -49,5 +49,9 @@
   "homepage": "https://github.com/flyxiu/dsh-simple-tps#readme",
   "bugs": {
     "url": "https://github.com/flyxiu/dsh-simple-tps/issues"
+  },
+  "scripts": {
+    "release": "bash scripts/release.sh",
+    "test": "node tests/run.mjs && node tests/host.mjs"
   }
 }
