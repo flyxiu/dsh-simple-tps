@@ -1,111 +1,136 @@
 # dsh-simple-tps
 
-每一轮回答结束后，在 DSH 网页版的动作行里、分支按钮之后、自带的「用量」胶囊之前，显示这一轮的 **TTFT** 和 **TPS**。
+在 DSH 网页版的每轮回答下方显示该轮的首 token 延迟与输出速度。读数位于分支按钮之后、自带用量胶囊之前，点击展开明细弹窗。
 
 ```
-[复制] [分支] [首字 3.2s · 均 2.1s · 42.6 tok/s] [⛁ 用量 12.3k] [18:42]
+[复制] [分支] [◔ 42.6 tok/s] [⛁ 用量 12.3k] [18:42]
 ```
 
-宿主 + 前端两半：宿主注册一个会话投影（`turnTimings`）从完整事件日志算每轮指标，前端只负责读取和排版。
+插件由宿主与前端两部分组成。宿主持有一个会话投影，在完整事件日志上折叠出每轮指标；前端负责读取与呈现。
 
-## 架构：为什么宿主算而不是前端算
+## 指标口径
 
-| | 前端算 | 宿主算（现在） |
-|---|---|---|
-| 数据来源 | 当前窗口的节点 `timing` | 完整事件日志 |
-| 首字时间 | 刷新后丢失（`live-chunk` 不持久化） | 从 `assistant/message.data.stream` 还原 |
-| 分页/压缩 | 老轮次算不出 | 不受影响 |
+一轮对话可能包含多个助手步骤，工具调用会把一轮拆成若干次模型请求。因此：
 
-关键点：持久日志里 `assistant/live-chunk` 是 0 条（首字时间不在那儿），但每条 `assistant/message` 都带 `data.stream`。把里面的「基准时间 `time0` + 每 token 间隔 `dt[]`」重放一遍，就能精确还原任意 token 出现的时刻——包括第一个。这套逻辑和 DSH 自带的 `sessionStats` 投影用的是同一个事件、同一套语义。
+- **首字**：第一步的 TTFT，即首 token 时刻减该步开始时刻。它对应「按下回车之后等了多久模型才开口」。
+- **均**：所有记录了首 token 的步骤的算术平均。只有一步时两者相等，只显示一个。
+- **tok/s**：按 token 加权，即输出 token 总数除以解码总时长（各步消息完成时刻减首 token 时刻）。逐步平均会让短而快的步骤权重偏高，故不采用。
 
-前端仍保留一个窗口折叠作为兜底：万一投影不可用（旧版本宿主），退回读节点 `timing`。
+任一项取不到就省略该项，全部取不到则整条不渲染。
 
-## 口径
+## 为什么在宿主侧计算
 
-每一轮可能包含多个助手步骤（中间调工具），所以：
+浏览器侧的会话快照只覆盖当前已加载的窗口，且首 token 时刻依赖 `assistant/live-chunk` 事件。该事件仅存在于实时流中，不写入持久日志。
 
-- **首字**：第一步的 TTFT —— 首 token 时间 − 该步开始时间，也就是「你按下回车之后等了多久它才开口」。
-- **均**：所有记录了首 token 的步骤的算术平均；只有一步时两者相等，只显示一个。
-- **tok/s**：按 token 加权，`Σ 输出 tokens ÷ Σ（消息完成时间 − 首 token 时间）`。逐步平均会让快而短的步骤权重过高，所以不用。
-- 任一项拿不到就省略那一项（历史分页没覆盖到 `step/start`、模型没报 usage 等）；全拿不到就整条不渲染。
-- **历史轮也能算准**（见上面的架构一节）。
-- 万一某条消息的 stream 缺失（异常中断等），才退回「整步时长」算下界速度，显示成 `≈45.0 tok/s`。
-- 窄屏降级：≤900px 去掉「均」，≤640px 只留 tok/s，≤480px 整条隐藏。
+持久日志里首 token 时刻另有来源。每条 `assistant/message` 携带 `data.stream`，其中的文本、推理与工具调用增量以「基准时刻 `time0` 加逐 token 间隔 `dt[]`」的形式压缩存放：整块 chunk 自带时间戳，成串的增量则只记录首项时刻与逐项间隔，靠累加还原。重放这份记录即可得到任意 token 的出现时刻，包括第一个。这一做法与 DSH 自带的 `sessionStats` 投影使用同一套事件语义，两者对首 token 的判定规则也一致。
 
-数据来源是聊天快照里每条已完成的助手节点上的 `timing`（`stepStartTime` / `firstTokenTime` / `completedTime`）、`usage.outputTokens`，以及 `data.stream` 里的逐 token 时间戳——前两组和自带「会话统计」用的是同一套字段，所以口径天然一致。
+投影因此能够覆盖完整日志，分页与压缩都不影响结果。前端保留窗口折叠作为兜底：投影不可用时退回读取节点的 `timing` 字段，速度改按整步时长计算，显示为 `≈45.0 tok/s` 并标注为下界。
 
-## 位置怎么来的
+## 前置条件
 
-插槽只能贡献到「复制之后、分支之前」的位置，`用量 + 时间` 是动作行的最后一个子元素。所以位置靠 **CSS `order`** 实现：动作行是 flex 容器，不是 DOM 顺序决定视觉顺序。
-
-```
-[复制] [分支] [首字 3.2s · 均 2.4s · 50.0 tok/s] [⛁ 用量] [14:10]
-        ↑ 插槽初始座位                ↑ 挪到这里
-```
-
-宿主若改了结构，最坏情况是退回默认位置（分支之前），不会崩。
-
-## 挂载点
-
-注册在 `conversation.chat.assistant-actions` 列表插槽里。这个插槽在 DOM 上只能落在「复制之后、分支之前」，落不到「用量」和「时间」之间——那一格是 `MessageIconActions` 内联写死的（`endInfo` 里塞着用量胶囊和时钟），没有对外插槽。
-
-最终视觉位置靠 CSS `order`：
-
-```css
-[data-clock=end] .dsh-simple-tps { order: 5 }   /* 后代选择器，不是子选择器 */
-[data-clock=end] > :last-child   { order: 10 }
-```
-
-**这里用的是后代选择器（空格），不是子选择器（`>`）**：插槽会在动作行和 pill 之间插一层 `display: contents` 的容器，pill 因此是孙节点。子选择器匹配不到，这就是第一版位置没变的真正原因。`display: contents` 的元素不生成盒子，但**不影响选择器匹配**，所以后代选择器可以穿过它。
-
-既不在 `endInfo` 里面，就也不受它的影响。因为处在动作行内，历史轮次上它和用量胶囊一样是悬停才淡入的，这是刻意的取舍。
+DSH 版本不低于 `0.2.1-rc.2`。宿主侧依赖 `sessionProjections` 服务，投影未注册时插件自身不激活。
 
 ## 安装
 
-已经装进 `~/.dsh/profiles/web`：
-
-- `package.json` 的 `dependencies` 里有 `"dsh-simple-tps": "link:../../../Code/VibeCoding/dsh-simple-tps"`
-- `dsh.profile.bundles` 末尾加了 `dsh-simple-tps`
-- `node_modules/dsh-simple-tps` 是指向本目录的软链
-
-改 `lib/index.js`（宿主投影）**必须重启**；只改 `lib/client.js`（前端）刷页面即可：
+从 GitHub 源安装：
 
 ```bash
-dsh-restart      # 宿主侧改动
-# Ctrl+F5        # 前端侧改动
+dsh plugin --profile web add github:flyxiu/dsh-simple-tps
 ```
 
-之后的 `pnpm install` 会按 `link:` 重新建链，不需要额外操作；如果要正式交给 pnpm 管理，在 profile 目录执行 `pnpm install` 即可。
+也可以使用本地目录，便于开发调试：
+
+```bash
+dsh plugin --profile web add link:/path/to/dsh-simple-tps
+```
+
+两种方式的差别在更新。
+
+`github:` 源会在插件市场显示更新按钮，`link:` 源被明确排除在在线更新之外，适合本地开发。
+
+## 更新
+
+修改 `package.json` 的版本号并推送即可。插件市场通过比对仓库 HEAD 与本地 lockfile 中的 commit 判断是否有更新：
+
+```bash
+npm version patch
+git push github main
+```
+
+用户端在插件市场中点击更新完成升级。不需要发布到 npm，也不需要手工替换文件。
 
 ## 开发
 
-`lib/client.js` 是手写的模块加载器格式，**没有构建步骤**：
+`lib/client.js` 是手写的模块加载器格式，无构建步骤：
 
 ```js
 window.__ModuleLoader__.load({ id: 'dsh-simple-tps', factory: (require) => { ... } })
 ```
 
-`id` 必须等于包名；`require` 只能取平台模块表里的包（`react`、`react/jsx-runtime`、`@deepseek-ai/dsh-client-ui-primitives` 等）。
+`id` 必须与包名一致。`require` 只能取平台模块表内的包，目前用到 `react`、`react-dom` 与 `@deepseek-ai/dsh-client-ui-primitives`；三者缺失时降级为纯文本显示，不阻断加载。
 
-改完 `lib/client.js` → `dsh-restart` → 刷页面。没有热更新：客户端 HMR 只在从源码 checkout 跑 `pnpm run dev:web` 时重建 bundle。
-
-离线自测（不需要 dsh）：
+修改后的生效方式取决于改动位置：
 
 ```bash
-node tests/run.mjs    # 前端：注册、折叠、投影优先、窄屏、格式化
-node tests/host.mjs   # 宿主：stream 还原、多步折叠、真实日志比对
+dsh-restart      # 改动 lib/index.js（宿主投影）
+# Ctrl+F5        # 改动 lib/client.js（前端）
 ```
 
-`tests/host.mjs` 会用本机一条真实会话日志（存在时）跑完整折叠，断言几乎每轮都能拿到精确 TTFT——这比构造假数据更能反映真实事件载荷。
+没有热更新。客户端的 HMR 只在从源码 checkout 运行 `pnpm run dev:web` 时重建 bundle。
+
+宿主与前端各自独立生效，改动其中一侧不影响另一侧。
+
+## 测试
+
+两套离线测试，不依赖运行中的 DSH：
+
+```bash
+node tests/run.mjs    # 前端：注册、折叠、投影优先、窄屏降级、数字格式化
+node tests/host.mjs   # 宿主：流还原、多步折叠、真实日志比对
+```
+
+`tests/host.mjs` 在本机存在真实会话日志时会跑完整折叠，断言绝大多数轮次都能取到精确 TTFT。
+
+用真实事件载荷验证，比构造假数据更能反映字段实情。
+
+## 界面细节
+
+读数通过 `conversation.chat.assistant-actions` 列表插槽注册。
+
+该插槽在 DOM 上只能落在复制按钮之后、分支按钮之前，落不到用量与时间之间。那一格由 `MessageIconActions` 内联渲染，没有对外插槽。
+
+视觉位置由 CSS `order` 调整。这里必须使用后代选择器而非子选择器：
+
+```css
+[data-clock=end] .dsh-simple-tps-root { margin-right: -8px; order: 5 }
+[data-clock=end] > :last-child        { order: 10 }
+```
+
+插槽会在动作行与读数之间插入一层 `display: contents` 的容器，读数因此是孙节点，子选择器无法命中。`display: contents` 的元素不生成盒子，但不影响选择器匹配，后代选择器可以穿过它；这也是最初把位置改错的原因，写成 `>` 时规则始终不生效。
+
+`-8px` 抵消用量组自带的左边距。
+
+交互沿用自带用量胶囊的形态：默认只显示速度，点击展开明细。弹窗复用 `useAnchoredPosition` 与 `useDismissOnOutsidePointer` 两个原语，配色取自 `--dsw-specific-menu`、`--dsw-elevation-prominent` 等语义令牌，与自带的「本轮用量」弹窗同一套视觉。
+
+位于动作行内，历史轮次上的读数与用量胶囊一样需要悬停才淡入。
+
+## 实时速度
+
+会话运行期间，当前流式输出的速度以「字/s」显示在「深度求索中」之后。该项独立于每轮读数，随回合结束消失。
+
+客户端只能观察到增量文本，拿不到 token 计数——token 数要等整轮结束才随 `usage` 返回。实时项因此以字符数计速并标注单位为「字/s」，每轮读数仍为精确的 token 口径。
+
+采样窗口取最近 1.2 秒。
+
+输出停顿或计算条件不足时保留上一次读数，避免跳变。
 
 ## 卸载
 
 ```bash
-# 从 bundles 和 dependencies 里删掉两行，然后
-rm ~/.dsh/profiles/web/node_modules/dsh-simple-tps
-rm ~/.dsh/profiles/web/package.json.bak-simple-tps   # 备份，确认稳定后再删
+dsh plugin --profile web remove dsh-simple-tps
 dsh-restart
 ```
 
-当时的备份在 `~/.dsh/profiles/web/package.json.bak-simple-tps`。
+## 许可
 
+MIT
