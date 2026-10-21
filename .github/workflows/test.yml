@@ -8,7 +8,17 @@ on:
 
 jobs:
   test:
+    # This repository is mirrored to a Gitea instance, which also reads
+    # .github/workflows and queues a run for every push. No runner serves that
+    # queue, so the run would sit in "running" indefinitely. GitHub is the only
+    # server meant to execute this file.
+    #
+    # The guard tests `github.server_url`, which GitHub always sets. A server
+    # that omits it would not satisfy the comparison either, so the job is
+    # skipped rather than failed.
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

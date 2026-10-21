@@ -8,3 +8,5 @@ node_modules/
 
 # Draft entry for the awesome-dsh-plugin listing (submitted as a PR there, not here)
 .awesome/
+
+__pycache__/
