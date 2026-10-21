@@ -5,3 +5,6 @@ node_modules/
 # Local editor state
 .vscode/
 .idea/
+
+# Draft entry for the awesome-dsh-plugin listing (submitted as a PR there, not here)
+.awesome/

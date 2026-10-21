@@ -327,6 +327,9 @@ assert.ok(cssText.includes('.dsh-simple-tps-trigger{'), 'trigger styled')
 assert.ok(cssText.includes('.dsh-simple-tps-panel{'), 'dialog styled')
 assert.ok(cssText.includes('[data-clock=end] .dsh-simple-tps-root{margin-right:-8px;order:5}'), 'readout ordered after the branch button and cancels the usage group margin')
 assert.ok(cssText.includes('.dsh-simple-tps-live{'), 'live chip styled')
+// The chip is floated out of flow, so it cannot reflow the running row at all.
+assert.ok(cssText.includes('position:fixed'), 'chip is out of flow')
+assert.ok(cssText.includes('pointer-events:none'), 'chip never swallows clicks')
 assert.ok(cssText.includes('[data-clock=end]>:last-child{order:10}'), 'usage pill and clock ordered after the readout')
 // The dialog mirrors the shipped stat-dialog recipe rather than inventing one.
 assert.ok(cssText.includes('var(--dsw-specific-menu)'), 'dialog uses the menu surface token')
@@ -404,13 +407,22 @@ sampler.observe({ chars: 100, turn: 1, step: 0 }, 1000)
 assert.equal(sampler.read(), null, 'one sample cannot imply a rate')
 sampler.observe({ chars: 200, turn: 1, step: 0 }, 1500)
 assert.equal(sampler.read(), '200 字/s', '100 chars in 0.5s, whole numbers above 100')
+// A stalled sample must hold the reading, not clear or decay it.
+sampler.observe({ chars: 200, turn: 1, step: 0 }, 1700)
+assert.equal(sampler.read(), '200 字/s', 'a stalled sample holds the last reading')
 sampler.observe({ chars: 300, turn: 1, step: 0 }, 2000)
 assert.equal(sampler.read(), '200 字/s', 'steady rate holds')
-// A new turn resets the window: the count drops, so no bogus burst.
+// A new step resets the window but keeps the last figure on screen: blanking it
+// between steps is what made the chip blink at every tool boundary.
 sampler.observe({ chars: 10, turn: 2, step: 0 }, 2500)
-assert.equal(sampler.read(), null, 'turn change resets instead of reporting a jump')
-// Idle clears it.
+assert.equal(sampler.read(), '200 字/s', 'step change holds the last reading')
+sampler.observe({ chars: 60, turn: 2, step: 0 }, 3000)
+assert.equal(sampler.read(), '100 字/s', 'the new step measures from its own baseline')
+// A missing measurement must NOT clear it: that caused the blink.
 sampler.observe(null, 3000)
-assert.equal(sampler.read(), null, 'idle hides the readout')
+assert.equal(sampler.read(), '100 字/s', 'a gap holds whatever was last shown instead of blanking')
+// Only an explicit forget clears it, which the turn-end path calls.
+sampler.forget()
+assert.equal(sampler.read(), null, 'forget clears the readout')
 
 console.log('ok: render output across breakpoints')

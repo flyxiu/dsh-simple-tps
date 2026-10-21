@@ -33,5 +33,21 @@
   "peerDependencies": {
     "react": "^18.2.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "tps",
+    "ttft",
+    "metrics"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/flyxiu/dsh-simple-tps.git"
+  },
+  "homepage": "https://github.com/flyxiu/dsh-simple-tps#readme",
+  "bugs": {
+    "url": "https://github.com/flyxiu/dsh-simple-tps/issues"
+  }
 }
