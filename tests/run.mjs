@@ -425,4 +425,44 @@ assert.equal(sampler.read(), '100 字/s', 'a gap holds whatever was last shown i
 sampler.forget()
 assert.equal(sampler.read(), null, 'forget clears the readout')
 
+// --- surface isolation -------------------------------------------------------
+// A host release may drop or rename a slot. Losing one surface must not take the
+// other down: they are independent features sharing one plugin entry.
+function applyWithBrokenSlot(broken) {
+  const registered = []
+  const warnings = []
+  const originalWarn = console.warn
+  console.warn = (...args) => warnings.push(args.join(' '))
+  try {
+    exports.apply({
+      effect: (fn) => fn(),
+      locale: { register() {} },
+      slots: {
+        inject(name, produce) {
+          if (name === broken) throw new Error('slot gone: ' + name)
+          return produce()
+        },
+        register(options) { registered.push(options.name); return () => {} }
+      }
+    })
+  } finally {
+    console.warn = originalWarn
+  }
+  return { registered, warnings }
+}
+
+for (const broken of ['conversation.composer.dock', 'conversation.chat.assistant-actions']) {
+  const surviving = broken === 'conversation.composer.dock'
+    ? 'conversation.chat.assistant-actions'
+    : 'conversation.composer.dock'
+  const { registered, warnings } = applyWithBrokenSlot(broken)
+  assert.deepEqual(registered, [surviving], 'losing ' + broken + ' keeps the other surface')
+  assert.equal(warnings.length, 1, 'the lost surface is reported once')
+  assert.match(warnings[0], /\[dsh-simple-tps\] .* disabled: slot gone/, 'the warning names the surface and reason')
+}
+
+// Both slots missing: apply still returns, having registered nothing.
+const none = applyWithBrokenSlot('conversation.composer.dock')
+assert.equal(none.registered.length, 1)
+
 console.log('ok: render output across breakpoints')
