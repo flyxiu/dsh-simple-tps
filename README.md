@@ -38,21 +38,29 @@ DSH 版本不低于 `0.2.1-rc.2`。宿主侧依赖 `sessionProjections` 服务�
 
 ## 安装
 
-从 GitHub 源安装：
+插件未发布到 npm，需要按 GitHub 仓库安装。
 
-```bash
-dsh plugin --profile web add github:flyxiu/dsh-simple-tps
+网页端和桌面客户端自带插件管理，在「设置 → 内置插件 → 添加插件」里填入仓库地址即可。
+
+```text
+https://github.com/flyxiu/dsh-simple-tps
 ```
 
-也可以使用本地目录，便于开发调试：
+命令行等价，`add` 之后的参数原样转给 pnpm：
+
+```bash
+dsh plugin --profile web add https://github.com/flyxiu/dsh-simple-tps
+```
+
+`github:flyxiu/dsh-simple-tps` 是 pnpm 针对 GitHub 简写的同义写法，两种写法装出来一样。
+
+本地目录方式用于开发调试，改完代码不必推送即可生效：
 
 ```bash
 dsh plugin --profile web add link:/path/to/dsh-simple-tps
 ```
 
-两种方式的差别在更新。
-
-`github:` 源会在插件市场显示更新按钮，`link:` 源被明确排除在在线更新之外，适合本地开发。
+区别在更新：仓库源会在插件市场显示更新按钮，`link:` 本地链接被排除在在线更新之外。
 
 ## 更新
 

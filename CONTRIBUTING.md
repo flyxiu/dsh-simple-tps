@@ -14,10 +14,17 @@ npm run release
 `scripts/release.sh` refuses to run on a dirty tree or off `main`, bumps the patch
 version, commits it, and pushes. Subscribers see the update on their next market check.
 
+It pushes to the remote named `github`, which is what this clone calls the GitHub
+repository. Others name their own `origin`; set `RELEASE_REMOTE` to override:
+
+```bash
+RELEASE_REMOTE=origin npm run release
+```
+
 Pushing a tag is separate and only matters if a GitHub Release is wanted:
 
 ```bash
-git push github --tags
+git push <remote> --tags
 ```
 
 ## Development

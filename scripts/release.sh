@@ -7,6 +7,9 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# The remote the market follows. This clone names it `github`; a fork usually
+# calls its own `origin`, so allow it to be overridden.
+remote="${RELEASE_REMOTE:-github}"
 branch="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$branch" != "main" ]; then
   echo "release: expected branch main, found $branch" >&2
@@ -26,6 +29,6 @@ echo "release: $version"
 
 git add package.json
 git commit -m "release: $version"
-git push github "$branch"
+git push "$remote" "$branch"
 
-echo "release: pushed $version to github"
+echo "release: pushed $version to $remote"
