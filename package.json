@@ -13,7 +13,8 @@
     "lib/index.js",
     "lib/client.js",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "dsh": {
     "engines": {
@@ -53,5 +54,8 @@
   "scripts": {
     "release": "bash scripts/release.sh",
     "test": "node tests/run.mjs && node tests/host.mjs"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

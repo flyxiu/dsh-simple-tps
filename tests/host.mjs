@@ -7,7 +7,7 @@
  * Run: node tests/host.mjs
  */
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { zstdDecompressSync } from 'node:zlib'
 import path from 'node:path'
@@ -115,13 +115,42 @@ assert.equal(zero.tps, null, 'zero tokens cannot yield a speed')
 assert.equal(foldEvent(empty, message(5, 0, 1, 10, [])), empty, 'a message without an open step is ignored')
 
 // --- real session log --------------------------------------------------------
-const log = '/home/flyx/.dsh/sessions/--home-flyx-Code-VibeCoding-dsh-simple-tps--/session-be2e09f3-71dd-4db5-add0-9fdbb99ec348/session.v4.jsonl.zstd'
-let raw
-try {
-  raw = await readFile(log)
-} catch {
-  raw = null
-  console.log('ok: unit fold (real session log unavailable, skipped)')
+// Optional: the suite passes without it, so CI and other machines skip this part.
+// Set DSH_SESSION_LOG to point at any session log from a DSH data directory; when
+// unset, the newest log for this workspace is used if one exists.
+const dshSessions = path.join(process.env.HOME ?? '', '.dsh', 'sessions', '--home-flyx-Code-VibeCoding-dsh-simple-tps--')
+async function findLog() {
+  if (process.env.DSH_SESSION_LOG !== undefined) return process.env.DSH_SESSION_LOG
+  let dirents
+  try {
+    dirents = await readdir(dshSessions, { withFileTypes: true })
+  } catch {
+    return null
+  }
+  const candidates = []
+  for (const dirent of dirents) {
+    if (!dirent.isDirectory()) continue
+    const file = path.join(dshSessions, dirent.name, 'session.v4.jsonl.zstd')
+    try {
+      const info = await stat(file)
+      candidates.push({ file, at: info.mtimeMs })
+    } catch {}
+  }
+  if (candidates.length === 0) return null
+  candidates.sort((left, right) => right.at - left.at)
+  return candidates[0].file
+}
+const log = await findLog()
+let raw = null
+if (log === null) {
+  console.log('ok: unit fold (no session log available, real-log check skipped)')
+} else {
+  try {
+    raw = await readFile(log)
+  } catch {
+    raw = null
+    console.log('ok: unit fold (session log unreadable, real-log check skipped)')
+  }
 }
 if (raw !== null) {
   const magic = Buffer.from([0x28, 0xb5, 0x2f, 0xfd])
