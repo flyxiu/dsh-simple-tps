@@ -1,5 +1,7 @@
 # dsh-simple-tps
 
+![test](https://github.com/flyxiu/dsh-simple-tps/actions/workflows/test.yml/badge.svg)
+
 在 DSH 网页版的每轮回答下方显示该轮的首 token 延迟与输出速度。读数位于分支按钮之后、自带用量胶囊之前，点击展开明细弹窗。
 
 ![每轮读数位于分支按钮与用量胶囊之间](assets/action-row.png)
