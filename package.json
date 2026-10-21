@@ -1,6 +1,6 @@
 {
   "name": "dsh-simple-tps",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Per-turn TTFT / TPS readout in the DSH web chat action row, next to the built-in usage pill.",
   "type": "module",
   "main": "lib/index.js",
