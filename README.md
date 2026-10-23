@@ -1,5 +1,6 @@
 # dsh-simple-tps
 
+[![Awesome DSH Plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 ![test](https://github.com/flyxiu/dsh-simple-tps/actions/workflows/test.yml/badge.svg)
 
 在 DSH 网页版的每轮回答下方显示该轮的首 token 延迟与输出速度。读数位于分支按钮之后、自带用量胶囊之前，点击展开明细弹窗。
