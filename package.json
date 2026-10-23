@@ -55,7 +55,8 @@
   },
   "scripts": {
     "release": "bash scripts/release.sh",
-    "test": "node tests/run.mjs && node tests/host.mjs"
+    "test": "node tests/run.mjs && node tests/host.mjs",
+    "test:sandbox": "bash tests/release-sandbox.sh"
   },
   "engines": {
     "node": ">=22"

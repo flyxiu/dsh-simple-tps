@@ -27,6 +27,30 @@ Pushing a tag is separate and only matters if a GitHub Release is wanted:
 git push <remote> --tags
 ```
 
+### Rehearse a change to the release script
+
+Never point a modified `scripts/release.sh` at this checkout first. `tests/release-sandbox.sh`
+rebuilds throwaway repos under `$TMPDIR`, each with its own bare remote, pushes a baseline,
+then runs the release script against them:
+
+```bash
+npm run test:sandbox                      # current script
+npm run test:sandbox -- path/to/release.sh  # a candidate script
+KEEP=1 npm run test:sandbox               # keep the temp dirs to poke at
+```
+
+Covered: a change under `lib/` and a `cordis.patch.yml` edit release; a `dsh` block or
+`files` field edit releases; docs-only, tests/CI-only, "nothing new since the last
+release", and prose-only `package.json` edits (`description`, `keywords`) are refused
+with an unchanged fingerprint of HEAD, refs, tags, index, `package.json` and remote; an
+edit to a loading key outside the gate (`exports`) is refused and reported as a note; a
+repo with no `release:` commit releases from the beginning; a dirty tree and a
+non-`main` branch are refused before anything is written.
+
+The refusal cases compare a fingerprint taken before and after, so "no side effects" is
+asserted, not assumed. Add a case before changing the script's rules; the mutation check
+is that a deliberately broken script must fail the suite.
+
 ## Development
 
 ```bash

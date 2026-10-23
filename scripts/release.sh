@@ -29,8 +29,8 @@ fi
 #
 # Shipped code is lib/ and cordis.patch.yml. package.json is handled separately
 # below because most of it is prose: rewriting `description` or `keywords` changes
-# nothing a subscriber would notice, while the `dsh` block and `exports` decide
-# how the plugin loads.
+# nothing a subscriber would notice, while the `dsh` block decides how the plugin
+# loads and `files` decides what gets published.
 source_paths=(lib cordis.patch.yml)
 
 # The range is "since the last release commit", not HEAD~1: a feature often
@@ -53,27 +53,42 @@ fi
 
 changed="$(git diff --name-only "$base" HEAD -- "${source_paths[@]}")"
 
-# The manifest counts only where it affects loading or shipping: `dsh`, `exports`,
-# `main`, `files`, `type`, and the dependency maps. A description edit is prose.
-if git diff --quiet "$base" HEAD -- package.json; then
-  manifest_changed=""
-elif node -e '
-  const { execFileSync } = require("node:child_process")
-  const read = (rev) => {
-    try {
-      return JSON.parse(execFileSync("git", ["show", `${rev}:package.json`], { encoding: "utf8" }))
-    } catch {
-      return {}
+# The manifest counts only in two places: the `dsh` block decides how the plugin
+# loads, and `files` decides what a subscriber actually downloads. Everything else
+# in the manifest is prose or tooling: rewriting `description`, `keywords`,
+# `repository` or `scripts` changes nothing a user would notice, so it must not
+# bump the version.
+#
+# `exports`, `main`, `type` and the dependency maps do affect loading, and this
+# narrower gate would let them ship silently, so they are reported as a note.
+# They are deliberately not in the gate: only `dsh` and `files` release.
+if ! git diff --quiet "$base" HEAD -- package.json; then
+  manifest_keys="$(node -e '
+    const { execFileSync } = require("node:child_process")
+    const read = (rev) => {
+      try {
+        return JSON.parse(execFileSync("git", ["show", rev + ":package.json"], { encoding: "utf8" }))
+      } catch {
+        return {}
+      }
     }
-  }
-  const keys = ["type", "main", "exports", "files", "dsh", "dependencies", "peerDependencies"]
-  const pick = (pkg) => JSON.stringify(keys.map((k) => pkg[k] ?? null))
-  const [base, head] = process.argv.slice(1)
-  process.exit(pick(read(base)) === pick(read(head)) ? 1 : 0)
-' "--" "$base" HEAD 2>/dev/null; then
-  manifest_changed="package.json"
-  changed="$changed
-$manifest_changed"
+    const gate = ["dsh", "files"]
+    const outside = ["type", "main", "exports", "dependencies", "peerDependencies"]
+    const [base, head] = process.argv.slice(1)
+    const before = read(base)
+    const after = read(head)
+    const changedIn = (keys) => keys.filter((k) => JSON.stringify(before[k] ?? null) !== JSON.stringify(after[k] ?? null))
+    const shipped = changedIn(gate)
+    const rest = changedIn(outside)
+    if (rest.length > 0) {
+      process.stderr.write("release: note: " + rest.join(", ") + " changed outside the release gate; only dsh and files release\n")
+    }
+    process.stdout.write(shipped.join("\n"))
+  ' "--" "$base" HEAD)"
+  for key in $manifest_keys; do
+    changed="$changed
+package.json [$key]"
+  done
 fi
 
 changed="$(printf '%s\n' "$changed" | sed '/^$/d')"
