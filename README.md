@@ -141,6 +141,16 @@ dsh plugin --profile web remove dsh-simple-tps
 dsh-restart
 ```
 
+## Star 增长
+
+<a href="https://www.star-history.com/#flyxiu/dsh-simple-tps&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=flyxiu/dsh-simple-tps&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=flyxiu/dsh-simple-tps&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=flyxiu/dsh-simple-tps&type=Date" />
+  </picture>
+</a>
+
 ## 许可
 
 MIT
