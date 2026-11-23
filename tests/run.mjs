@@ -384,6 +384,46 @@ assert.match(panelText, /50\.0 tok\/s/, 'dialog shows the speed')
 assert.match(panelText, /精确窗口/)
 openSeat = false
 
+// --- dialog placement --------------------------------------------------------
+// DSH 0.2.2 dropped the anchored-position primitive, so the local fallback is the
+// only thing that places the dialog. Unplaced, the panel keeps its measuring
+// style: invisible in the corner, which reads as a dead click.
+const placePanel = exports.placePanel
+const viewport = { width: 1440, height: 900 }
+const box = (left, top, width, height) => ({ left, top, width, height, right: left + width, bottom: top + height })
+const panelBox = box(0, 0, 320, 140)
+
+assert.deepEqual(
+  placePanel(box(900, 600, 60, 28), panelBox, viewport, 8, 12),
+  { left: 900, top: 452 },
+  'sits above the trigger with the gap'
+)
+assert.deepEqual(
+  placePanel(box(1400, 600, 60, 28), panelBox, viewport, 8, 12),
+  { left: 1108, top: 452 },
+  'clamps to the right margin instead of overflowing'
+)
+assert.deepEqual(
+  placePanel(box(4, 600, 60, 28), panelBox, viewport, 8, 12),
+  { left: 12, top: 452 },
+  'clamps to the left margin'
+)
+assert.deepEqual(
+  placePanel(box(900, 100, 60, 28), panelBox, viewport, 8, 12),
+  { left: 900, top: 136 },
+  'drops below the trigger when there is no room above'
+)
+assert.deepEqual(
+  placePanel(box(900, 890, 60, 28), panelBox, viewport, 8, 12),
+  { left: 900, top: 742 },
+  'a trigger near the bottom edge still opens the panel above it'
+)
+assert.deepEqual(
+  placePanel(box(900, 100, 60, 28), panelBox, { width: 1440, height: 200 }, 8, 12),
+  { left: 900, top: 48 },
+  'clamps to the bottom margin when even the drop would overflow'
+)
+
 // --- live sampler ------------------------------------------------------------
 // Streaming speed is sampled from the partial assistant's character count over a
 // short sliding window, so a slow stretch in a long turn still reads slow.
