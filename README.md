@@ -35,7 +35,7 @@
 
 ## 前置条件
 
-DSH 版本不低于 `0.2.1-rc.2`。宿主侧依赖 `sessionProjections` 服务，投影未注册时插件自身不激活。
+DSH 版本不低于 `0.2.2-rc.5`。宿主侧依赖 `sessionProjections` 服务，投影未注册时插件自身不激活。
 
 ## 安装
 
