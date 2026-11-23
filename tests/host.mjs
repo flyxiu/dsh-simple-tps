@@ -114,6 +114,38 @@ const zero = projectView(foldEvent(foldEvent(empty, stepStart(4, 0, 0)), message
 assert.equal(zero.tps, null, 'zero tokens cannot yield a speed')
 assert.equal(foldEvent(empty, message(5, 0, 1, 10, [])), empty, 'a message without an open step is ignored')
 
+// --- additive readings -------------------------------------------------------
+// `wall` measures the turn the user sat through (prompt → last token); `tpsGen`
+// divides the same tokens by the pure generation window. Neither may disturb the
+// headline numbers, which stay on the settlement window.
+const noTurn = projectView(state).turns['1']
+assert.equal(noTurn.wall, null, 'no turn/start means no wall clock')
+assert.ok(noTurn.tpsGen !== null && noTurn.tpsGen >= noTurn.tps, 'the pure window cannot be slower than the settlement window')
+
+const turnStart = (turn, time) => ({ type: 'turn/start', seq: 0, time, data: { turn } })
+const turnEnd = (turn, time) => ({ type: 'turn/end', seq: 9, time, data: { turn, reason: { kind: 'completed' } } })
+let walled = turnTimingsProjection.init()
+walled = foldEvent(walled, turnStart(7, 1000))
+walled = foldEvent(walled, stepStart(7, 0, 1200))
+walled = foldEvent(walled, message(7, 0, 5000, 100, [
+  { type: 'chunk', time: 1600, chunk: { type: 'text-delta', index: 0, text: 'a' } },
+  { type: 'text-chunks', time0: 4000, index: 0, dt: [200, 300], texts: ['b', 'c', 'd'] }
+]))
+const walledView = projectView(walled).turns['7']
+assert.equal(walledView.wall, 4500 - 1000, 'wall runs from the prompt to the last token, not to the settlement')
+assert.ok(Math.abs(walledView.tpsGen - 100 / ((4500 - 1600) / 1000)) < 1e-9, 'tpsGen uses the pure generation window')
+assert.ok(Math.abs(walledView.tps - 100 / ((5000 - 1600) / 1000)) < 1e-9, 'tps keeps the settlement window')
+
+// A second step extends the same wall clock instead of restarting it.
+let twoSteps = foldEvent(walled, stepStart(7, 1, 6000))
+twoSteps = foldEvent(twoSteps, message(7, 1, 9000, 50, [{ type: 'chunk', time: 7000, chunk: { type: 'text-delta', index: 0, text: 'e' } }]))
+const twoStepsView = projectView(twoSteps).turns['7']
+assert.equal(twoStepsView.wall, 7000 - 1000, 'the wall clock spans the whole turn')
+assert.equal(twoStepsView.steps, 2)
+
+// The turn boundary forgets the open turn, so a later turn cannot inherit it.
+assert.equal(foldEvent(walled, turnEnd(7, 9100)).openTurn, null, 'turn/end closes the open turn')
+
 // --- real session log --------------------------------------------------------
 // Optional: the suite passes without it, so CI and other machines skip this part.
 // Set DSH_SESSION_LOG to point at any session log from a DSH data directory; when
@@ -180,11 +212,17 @@ if (raw !== null) {
       String(withTtft.length) + ' with TTFT, ' + String(exact.length) + ' exact speed'
   )
   assert.ok(withTtft.length / turns.length > 0.9, 'the durable stream recovers TTFT for almost every turn')
+  const withWall = turns.filter((key) => realView.turns[key].wall !== null)
+  const withGen = turns.filter((key) => realView.turns[key].tpsGen !== null)
   for (const key of turns) {
     const reading = realView.turns[key]
     if (reading.ttftFirst !== null) assert.ok(reading.ttftFirst >= 0 && Number.isFinite(reading.ttftFirst))
     if (reading.tps !== null) assert.ok(reading.tps > 0 && Number.isFinite(reading.tps), 'turn ' + key + ' speed is sane')
+    if (reading.wall !== null) assert.ok(reading.wall >= (reading.ttftFirst ?? 0), 'turn ' + key + ' wall clock covers its TTFT')
+    if (reading.tpsGen !== null) assert.ok(reading.tpsGen >= reading.tps, 'turn ' + key + ' pure window is not slower')
   }
+  assert.ok(withWall.length / turns.length > 0.9, 'the real log carries turn/start for almost every turn')
+  assert.ok(withGen.length / turns.length > 0.9, 'the real log carries last-token times for almost every turn')
 }
 
 console.log('ok: projection fold, stream decoding, and real-log agreement')

@@ -228,6 +228,8 @@ const t = (key, params) => {
     'dialog.first': '首字（TTFT）',
     'dialog.avg': '首字均值',
     'dialog.speed': '输出速度（TPS）',
+    'dialog.gen': '纯生成窗口',
+    'dialog.wall': '整轮耗时',
     'dialog.steps': '步骤',
     'dialog.exact': '精确窗口',
     'dialog.gross': '整步窗口（下界）',
@@ -339,7 +341,7 @@ assert.ok(cssText.includes('z-index:1100'), 'dialog sits on the stat-dialog laye
 // When the host projects the turn, its figures win: they cover the whole log.
 const projection = {
   turns: {
-    1: { ttftFirst: 1111, ttftAvg: 1222, tps: 77.7, steps: 3, exact: true }
+    1: { ttftFirst: 1111, ttftAvg: 1222, tps: 77.7, steps: 3, exact: true, wall: 9200, tpsGen: 84.2 }
   }
 }
 const projectedTree = captured.components['simple-tps']({
@@ -349,6 +351,25 @@ const projectedTree = captured.components['simple-tps']({
   useProjection: (key, selector) => (key === 'turnTimings' ? selector(projection) : undefined)
 })
 assert.equal(textOf(triggerOf(projectedTree)), '77.7 tok/s', 'projection figures override the window fold')
+
+// The additive readings ride along in the dialog without touching the headline.
+openSeat = true
+const projectedOpen = captured.components['simple-tps']({
+  messageId: 'm-3',
+  t,
+  useChat: (selector) => selector(snapshotFor(threeSteps, 1, 'm-3')),
+  useProjection: (key, selector) => (key === 'turnTimings' ? selector(projection) : undefined)
+})
+const projectedPanel = projectedOpen.children.find((child) => child && typeof child.type === 'function').type(
+  projectedOpen.children.find((child) => child && typeof child.type === 'function').props
+)
+const projectedText = textOf(projectedPanel)
+assert.match(projectedText, /纯生成窗口/)
+assert.match(projectedText, /84\.2 tok\/s/, 'the pure generation window is shown')
+assert.match(projectedText, /整轮耗时/)
+assert.match(projectedText, /9\.2s/, 'the wall clock is shown')
+assert.match(projectedText, /77\.7 tok\/s/, 'the headline speed still uses the settlement window')
+openSeat = false
 
 // An absent projection falls back to folding the loaded window.
 const fallbackTree = captured.components['simple-tps']({
