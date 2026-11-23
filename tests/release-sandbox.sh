@@ -222,6 +222,48 @@ check "exit 1"                   '[ "$rc" -eq 1 ]'
 check "names the branch"         'grep -q "expected branch main" <<<"$err"'
 check "fingerprint identical"    '[ "$before" = "$after" ]'
 
+echo "[6] private origin plus filtered public mirror"
+d="$work/split"; repo="$d/repo"; priv="$d/origin.git"; mirror="$d/mirror.git"
+mkdir -p "$repo/scripts" "$repo/lib" "$repo/docs"
+git init -q --bare --initial-branch=main "$priv"
+git init -q --bare --initial-branch=main "$mirror"
+git -C "$repo" init -q --initial-branch=main
+git -C "$repo" config user.email sandbox@example.invalid
+git -C "$repo" config user.name "Release Sandbox"
+git -C "$repo" config commit.gpgsign false
+cp "$script_path" "$repo/scripts/release.sh"; chmod +x "$repo/scripts/release.sh"
+cp "$seed/scripts/publish-github.sh" "$repo/scripts/publish-github.sh"; chmod +x "$repo/scripts/publish-github.sh"
+cp "$seed/package.json" "$seed/cordis.patch.yml" "$seed/README.md" "$repo/"
+cp -R "$seed/lib/." "$repo/lib/"
+printf '# internal design\n' > "$repo/docs/设计.md"
+printf '# agent handoff\n' > "$repo/AGENTS.md"
+git -C "$repo" add -A
+git -C "$repo" commit -qm "release: $seed_version"
+git -C "$repo" remote add origin "$priv"
+git -C "$repo" remote add github "$mirror"
+git -C "$repo" push -q origin main
+# Seed the mirror the way the one-time rewrite left it: shipped files only.
+seed_clone="$d/seed-clone"
+git clone -q "$repo" "$seed_clone"
+rm -rf "$seed_clone/docs" "$seed_clone/AGENTS.md"
+git -C "$seed_clone" -c user.email=sandbox@example.invalid -c user.name="Release Sandbox" commit -qam "release: $seed_version"
+git -C "$seed_clone" push -q "$mirror" main
+git -C "$repo" fetch -q github main
+git -C "$repo" update-ref refs/heads/public github/main
+printf '\n// shipped\n' >> "$repo/lib/index.js"
+git -C "$repo" commit -qam "fix: sandbox change"
+want="$(bumped "$repo")"
+mirror_before="$(git -C "$mirror" rev-parse main)"
+out="$(cd "$repo" && bash scripts/release.sh 2>&1)"; rc=$?
+check "exit 0"                       '[ "$rc" -eq 0 ]'
+check "version bumped to $want"      '[ "$(ver "$repo")" = "$want" ]'
+check "private got the release"      '[ "$(git -C "$priv" rev-parse main)" = "$(git -C "$repo" rev-parse HEAD)" ]'
+check "private keeps the notes"      'git -C "$priv" ls-tree -r --name-only main | grep -q "docs/"'
+check "mirror advanced"              '[ "$(git -C "$mirror" rev-parse main)" != "$mirror_before" ]'
+check "mirror drops the notes"       '! git -C "$mirror" ls-tree -r --name-only main | grep -q -e "docs/" -e "^AGENTS.md$"'
+check "mirror ships the fix"         'git -C "$mirror" show main:lib/index.js | grep -q "// shipped"'
+check "mirror names the version"     'git -C "$mirror" show main:package.json | grep -q "\"version\": \"$want\""'
+
 echo
 echo "sandbox: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

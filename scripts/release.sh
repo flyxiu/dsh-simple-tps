@@ -7,9 +7,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# The remote the market follows. This clone names it `github`; a fork usually
-# calls its own `origin`, so allow it to be overridden.
-remote="${RELEASE_REMOTE:-github}"
+# The private repository is the whole history; the public mirror follows below.
+# This clone names the private remote `origin`; a fork usually owns its own, so
+# allow it to be overridden.
+remote="${RELEASE_REMOTE:-origin}"
 branch="$(git rev-parse --abbrev-ref HEAD)"
 if [ "$branch" != "main" ]; then
   echo "release: expected branch main, found $branch" >&2
@@ -111,5 +112,10 @@ echo "release: $version"
 git add package.json
 git commit -m "release: $version"
 git push "$remote" "$branch"
-
 echo "release: pushed $version to $remote"
+
+# The public mirror carries shipped files only (scripts/publish-github.sh strips
+# the internal notes). Repositories without the mirror script stop here.
+if [ -x scripts/publish-github.sh ]; then
+  bash scripts/publish-github.sh
+fi

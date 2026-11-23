@@ -1,6 +1,6 @@
 {
   "name": "dsh-simple-tps",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Per-turn TTFT / TPS readout in the DSH web chat action row, next to the built-in usage pill.",
   "type": "module",
   "main": "lib/index.js",
@@ -56,7 +56,7 @@
   "scripts": {
     "release": "bash scripts/release.sh",
     "test": "node tests/run.mjs && node tests/host.mjs",
-    "test:sandbox": "bash tests/release-sandbox.sh"
+    "test:sandbox": "bash tests/release-sandbox.sh && bash tests/publish-sandbox.sh"
   },
   "engines": {
     "node": ">=22"

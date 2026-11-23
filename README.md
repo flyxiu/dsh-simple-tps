@@ -118,39 +118,15 @@ node tests/host.mjs   # 宿主：流还原、多步折叠、真实日志比对
 
 `-8px` 抵消用量组自带的左边距。
 
-交互沿用自带用量胶囊的形态：默认只显示速度，点击展开明细。弹窗复用 `useAnchoredPosition` 与 `useDismissOnOutsidePointer` 两个原语，配色取自 `--dsw-specific-menu`、`--dsw-elevation-prominent` 等语义令牌，与自带的「本轮用量」弹窗同一套视觉。
+交互沿用自带用量胶囊的形态：默认只显示速度，点击展开明细。弹窗的定位由插件自己量两个盒子（0.2.2 起 `useAnchoredPosition` 已从 primitives 移除），配色取自 `--dsw-specific-menu`、`--dsw-elevation-prominent` 等语义令牌，与自带的「本轮用量」弹窗同一套视觉。
 
 位于动作行内，历史轮次上的读数与用量胶囊一样需要悬停才淡入。
 
-## 实时速度
+## 实时读数
 
-会话运行期间，当前流式输出的速度以「字/s」显示在「深度求索中」之后。该项独立于每轮读数，随回合结束消失。
+会话运行期间，「深度求索中」之后显示本轮已产出的 token 数，随回合结束消失。
 
-![实时速度](assets/live-rate.png)
+数字由两段拼成：已结算步骤的精确 `usage.outputTokens`，加上正在流式输出的那一步按字符数折算的值。流式期间没有 token 计数——`usage` 要等该步结算才回——所以尾部始终带估算，前缀 `≈` 标明；步骤结算后自动并入精确值。
 
-客户端只能观察到增量文本，拿不到 token 计数——token 数要等整轮结束才随 `usage` 返回。实时项因此以字符数计速并标注单位为「字/s」，每轮读数仍为精确的 token 口径。
+折算按 3 字符 1 token。实测字符/token 中位 2.89、p90 3.63，整轮累计的中位误差 15%、p90 32%。动作行上的每轮读数仍是精确口径，两者互不影响。
 
-采样窗口取最近 1.2 秒。
-
-输出停顿或计算条件不足时保留上一次读数，避免跳变。
-
-## 卸载
-
-```bash
-dsh plugin --profile web remove dsh-simple-tps
-dsh-restart
-```
-
-## Star 增长
-
-<a href="https://www.star-history.com/#flyxiu/dsh-simple-tps&Date">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=flyxiu/dsh-simple-tps&type=Date&theme=dark" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=flyxiu/dsh-simple-tps&type=Date" />
-    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=flyxiu/dsh-simple-tps&type=Date" />
-  </picture>
-</a>
-
-## 许可
-
-MIT

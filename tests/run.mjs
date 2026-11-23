@@ -445,9 +445,9 @@ assert.deepEqual(
   'clamps to the bottom margin when even the drop would overflow'
 )
 
-// --- live sampler ------------------------------------------------------------
-// Streaming speed is sampled from the partial assistant's character count over a
-// short sliding window, so a slow stretch in a long turn still reads slow.
+// --- live readout ------------------------------------------------------------
+// The chip counts tokens produced so far this turn: settled steps are exact, the
+// step in flight is priced from its character count.
 const liveChars = exports.liveChars
 assert.equal(liveChars(null), null)
 assert.equal(liveChars({ turn: 1, step: 0, blocks: [] }), null, 'no text yet')
@@ -462,29 +462,24 @@ assert.equal(
   'tool calls are not output'
 )
 
-const createLiveSampler = exports.createLiveSampler
-const sampler = createLiveSampler()
-sampler.observe({ chars: 100, turn: 1, step: 0 }, 1000)
-assert.equal(sampler.read(), null, 'one sample cannot imply a rate')
-sampler.observe({ chars: 200, turn: 1, step: 0 }, 1500)
-assert.equal(sampler.read(), '200 字/s', '100 chars in 0.5s, whole numbers above 100')
-// A stalled sample must hold the reading, not clear or decay it.
-sampler.observe({ chars: 200, turn: 1, step: 0 }, 1700)
-assert.equal(sampler.read(), '200 字/s', 'a stalled sample holds the last reading')
-sampler.observe({ chars: 300, turn: 1, step: 0 }, 2000)
-assert.equal(sampler.read(), '200 字/s', 'steady rate holds')
-// A new step resets the window but keeps the last figure on screen: blanking it
-// between steps is what made the chip blink at every tool boundary.
-sampler.observe({ chars: 10, turn: 2, step: 0 }, 2500)
-assert.equal(sampler.read(), '200 字/s', 'step change holds the last reading')
-sampler.observe({ chars: 60, turn: 2, step: 0 }, 3000)
-assert.equal(sampler.read(), '100 字/s', 'the new step measures from its own baseline')
-// A missing measurement must NOT clear it: that caused the blink.
-sampler.observe(null, 3000)
-assert.equal(sampler.read(), '100 字/s', 'a gap holds whatever was last shown instead of blanking')
-// Only an explicit forget clears it, which the turn-end path calls.
-sampler.forget()
-assert.equal(sampler.read(), null, 'forget clears the readout')
+const liveTokens = exports.liveTokens
+const formatCount = exports.formatCount
+assert.equal(formatCount(0), '0')
+assert.equal(formatCount(999), '999')
+assert.equal(formatCount(1200), '1,200')
+assert.equal(formatCount(1234567), '1,234,567', 'separators every three digits')
+
+assert.equal(liveTokens(0, 0), '≈0 tok', 'nothing produced yet')
+assert.equal(liveTokens(300, 0), '≈100 tok', '300 characters at the observed density')
+assert.equal(liveTokens(300, 1200), '≈1,300 tok', 'settled tokens anchor the running estimate')
+assert.equal(liveTokens(null, 42), '≈42 tok', 'no streaming text still shows what settled')
+assert.equal(liveTokens(1, 0), '≈0 tok', 'a single character cannot round up into a token')
+
+const settledTokens = exports.settledTokens
+assert.equal(settledTokens(null, 1), 0, 'no projection means no settled anchor')
+assert.equal(settledTokens({ 3: { tokens: 810 } }, 3), 810)
+assert.equal(settledTokens({ 3: { tokens: 810 } }, 4), 0, 'other turns never leak in')
+assert.equal(settledTokens({ 3: {} }, 3), 0, 'a reading without usage anchors at zero')
 
 // --- surface isolation -------------------------------------------------------
 // A host release may drop or rename a slot. Losing one surface must not take the
