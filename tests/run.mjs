@@ -96,6 +96,25 @@ assert.equal(captured.locale.ns, 'dsh-simple-tps')
 assert.equal(captured.locale.dicts.zh['tps'], '{value} tok/s')
 assert.deepEqual(exports.inject, ['slots', 'locale'])
 
+// Language coverage. The host resolves the dictionary by the active UI language
+// and falls back to `en` for the ones we do not ship, so a key present in one
+// dictionary and missing from the other shows as a raw key name in that
+// language. Keep the two sets identical and both non-trivial.
+const zhKeys = Object.keys(captured.locale.dicts.zh).sort()
+const enKeys = Object.keys(captured.locale.dicts.en).sort()
+assert.ok(zhKeys.length >= 14, 'the Chinese dictionary is complete')
+assert.deepEqual(enKeys, zhKeys, 'en and zh must carry the same keys')
+for (const key of zhKeys) {
+  assert.ok(captured.locale.dicts.zh[key].trim() !== '', `zh.${key} is not empty`)
+  assert.ok(captured.locale.dicts.en[key].trim() !== '', `en.${key} is not empty`)
+}
+// The English entries are English, not a copy of the Chinese ones: a placeholder
+// swap that duplicated the source text would pass a key-parity check alone.
+const cjk = /[\u4e00-\u9fff]/
+for (const key of enKeys) {
+  assert.equal(cjk.test(captured.locale.dicts.en[key]), false, `en.${key} still contains Chinese`)
+}
+
 // --- reading fold ------------------------------------------------------------
 const turnReading = exports.turnReading
 
