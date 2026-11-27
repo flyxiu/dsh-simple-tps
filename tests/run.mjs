@@ -175,6 +175,11 @@ assert.equal(exports.formatMs(0), '0.0s')
 assert.equal(exports.formatTps(42.64), '42.6')
 assert.equal(exports.formatTps(7.25), '7.3')
 assert.equal(exports.formatTps(123.4), '123')
+// A turn that streams no usage chunk leaves the figure null; formatting it used
+// to throw out of the render and surface as the red debug line (issue #1).
+for (const missing of [null, undefined, NaN, Infinity]) {
+  assert.equal(exports.formatTps(missing), '—', 'formatTps(' + String(missing) + ') must not throw')
+}
 
 console.log('ok: registration wiring, reading fold, and formatting')
 
@@ -321,6 +326,15 @@ const historicalTree = captured.components['simple-tps']({ messageId: 'm-h', t, 
 assert.equal(textOf(triggerOf(historicalTree)), '≈40.0 tok/s')
 assert.equal(triggerOf(historicalTree).props['data-simple-tps'], 'gross')
 assert.match(triggerOf(historicalTree).props.title, /下界/)
+
+// A turn with no token counters carries tps null. The readout must render its
+// dash instead of throwing into the debug line (issue #1: providers whose
+// streaming response omits the final usage chunk).
+const noUsage = [step(1, 21, 'm-nu', 1000, 1500, 6000, 0)]
+const noUsageTree = renderWith(noUsage, 'm-nu', 21)
+const noUsageText = textOf(triggerOf(noUsageTree))
+assert.equal(/DBG/.test(noUsageText), false, 'no token counters must not render a probe')
+assert.match(noUsageText, /输出速度（TPS） —/, 'the label states the figure is missing')
 
 // Ordering rides the stylesheet: the descendant selector reaches the pill even
 // though a display:contents slot wrapper sits between it and the action row.
